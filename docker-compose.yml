@@ -1,0 +1,60 @@
+version: "3.7"
+services:
+  telegraf:
+    image: telegraf
+    links:
+      - mqtt
+      - influxdb
+    restart: always
+    networks:
+      - scada
+    volumes:
+      - /root/scada-docker/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: vip
+  mqtt:
+    image: eclipse-mosquitto:latest
+    restart: always
+    ports:
+      - "9002:9001"
+      - "1884:1883"
+    networks:
+      - scada
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: vip
+  influxdb:
+    image: influxdb:latest
+    restart: always
+    ports:
+      - "8087:8086"
+    networks:
+      - scada
+    environment:
+     - PRE_CREATE_DB=scada
+    volumes:
+      - scada-influxdb:/var/lib/influxdb
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: vip
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    links:
+      - influxdb
+    networks:
+      - scada
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: vip
+volumes:
+  scada-influxdb:
+networks:
+  scada:
+    driver: "bridge"
