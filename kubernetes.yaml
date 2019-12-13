@@ -1,0 +1,180 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: scada
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mqtt
+  namespace: scada
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mqtt
+  template:
+    metadata:
+      labels:
+        app: mqtt
+    spec:
+      containers:
+      - image: eclipse-mosquitto:latest
+        imagePullPolicy: Always
+        name: mqtt
+        ports:
+        - containerPort: 9001
+          protocol: TCP
+        - containerPort: 1883
+          protocol: TCP
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mqtt
+  namespace: scada
+spec:
+  selector:
+    app: mqtt 
+  ports:
+  - name: normal
+    port: 9001
+    targetPort: 9001
+  - name: websocket
+    port: 1883
+    targetPort: 1883
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mqtt2
+  namespace: scada
+spec:
+  selector:
+    app: mqtt
+  type: NodePort   
+  ports:
+  - name: normal
+    port: 9001
+    targetPort: 9001
+    nodePort: 9001
+  - name: websocket
+    port: 1883
+    targetPort: 1883
+    nodePort: 1883
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: influxdb
+  namespace: scada
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: influxdb
+  template:
+    metadata:
+      labels:
+        app: influxdb
+    spec:
+      containers:
+      - image: influxdb:latest
+        imagePullPolicy: Always
+        name: influxdb
+        ports:
+        - containerPort: 8086
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /var/lib/influxdb
+          name: influxdbvol
+      restartPolicy: Always
+      volumes:
+      - hostPath:
+          path: /root/volumes/scada/influxdb
+        name: influxdbvol
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: influxdb
+  namespace: scada
+spec:
+  selector:
+    app: influxdb
+  ports:
+  - port: 8086
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: scada
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      containers:
+      - image: grafana/grafana:latest
+        imagePullPolicy: Always
+        name: grafana
+        volumeMounts:
+        - mountPath: /var/lib/grafana
+          name: grafanavol
+        ports:
+        - containerPort: 3000
+          protocol: TCP
+      restartPolicy: Always
+      volumes:
+      - hostPath:
+          path: /root/volumes/grafana/
+        name: grafanavol
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: scada
+spec:
+  selector:
+    app: grafana
+  ports:
+  - port: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telegraf
+  namespace: scada
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telegraf
+  template:
+    metadata:
+      labels:
+        app: telegraf
+    spec:
+      containers:
+      - image: telegraf
+        name: telegraf
+        volumeMounts:
+        - mountPath: /etc/telegraf/telegraf.conf
+          name: telegrafvol
+      restartPolicy: Always
+      volumes:
+      - hostPath:
+          path: /root/volumes/telegraf/telegraf.conf
+        name: telegrafvol
